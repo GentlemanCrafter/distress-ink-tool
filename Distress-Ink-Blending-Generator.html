@@ -1,0 +1,407 @@
+# Distress Ink Blending Generator – Interactive HTML Prototype
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distress Ink Blend Generator Tool</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #efefef;
+    color: #222;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+}
+
+.header {
+    background: #f6f6f6;
+    border: 1px solid #555;
+    border-radius: 18px;
+    text-align: center;
+    padding: 24px;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    letter-spacing: 1px;
+}
+
+.main-layout {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 12px;
+}
+
+.panel {
+    background: #f6f6f6;
+    border: 1px solid #555;
+    border-radius: 18px;
+    padding: 20px;
+}
+
+.section-title {
+    font-size: 1.6rem;
+    font-weight: bold;
+    margin-bottom: 18px;
+}
+
+label {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+select {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+    border: 1px solid #888;
+    background: white;
+    margin-bottom: 16px;
+}
+
+.colour-row {
+    margin-bottom: 14px;
+}
+
+.preview-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.stop-track {
+    position: relative;
+    height: 54px;
+    border: 1px solid #777;
+    border-radius: 10px;
+    background: #ececec;
+}
+
+.stop-pin {
+    position: absolute;
+    top: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.5);
+    cursor: grab;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+.stop-pin::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -12px;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 12px solid rgba(0,0,0,0.55);
+}
+
+.stop-pin::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -10px;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 10px solid currentColor;
+}
+
+.blend-preview {
+    width: 100%;
+    height: 680px;
+    border: 1px solid #555;
+    border-radius: 6px;
+    background: linear-gradient(to right, red, blue);
+    position: relative;
+    overflow: hidden;
+}
+
+.blend-preview::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 25% 35%, rgba(255,255,255,0.12), transparent 35%),
+        radial-gradient(circle at 70% 70%, rgba(255,255,255,0.08), transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(0,0,0,0.05), transparent 65%);
+    mix-blend-mode: soft-light;
+}
+
+@media (max-width: 900px) {
+    .main-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .blend-preview {
+        height: 420px;
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+    <div class="header">
+        <h1>DISTRESS INK BLENDING GENERATOR TOOL</h1>
+    </div>
+
+    <div class="main-layout">
+
+        <div class="panel">
+
+            <label for="stopCount">NUMBER OF COLOURS TO MIX</label>
+            <select id="stopCount">
+                <option value="2">2 Colours</option>
+                <option value="3">3 Colours</option>
+                <option value="4">4 Colours</option>
+                <option value="5" selected>5 Colours</option>
+                <option value="6">6 Colours</option>
+            </select>
+
+            <label>CHOOSE COLOURS</label>
+
+            <div id="colourControls"></div>
+
+        </div>
+
+        <div class="panel preview-wrapper">
+
+            <div class="stop-track" id="stopTrack"></div>
+
+            <div class="blend-preview" id="blendPreview"></div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+const distressInks = [
+    { name: 'Peacock Feathers', hex: '#57C0D8' },
+    { name: 'Barn Door', hex: '#E83B4A' },
+    { name: 'Rusty Hinge', hex: '#C96A2D' },
+    { name: 'Picked Raspberry', hex: '#C14C9A' },
+    { name: 'Twisted Citron', hex: '#9ACD3B' },
+    { name: 'Mustard Seed', hex: '#F5CF1D' },
+    { name: 'Wilted Violet', hex: '#7B66B2' },
+    { name: 'Salty Ocean', hex: '#2C84C6' },
+    { name: 'Vintage Photo', hex: '#70503B' },
+    { name: 'Spiced Marmalade', hex: '#D56A27' },
+    { name: 'Cracked Pistachio', hex: '#9AC6B1' },
+    { name: 'Broken China', hex: '#5DB6E7' }
+];
+
+const stopCountSelect = document.getElementById('stopCount');
+const colourControls = document.getElementById('colourControls');
+const blendPreview = document.getElementById('blendPreview');
+const stopTrack = document.getElementById('stopTrack');
+
+let stops = [];
+
+function createDefaultStops(count) {
+    stops = [];
+
+    for (let i = 0; i < count; i++) {
+        const ink = distressInks[i % distressInks.length];
+
+        stops.push({
+            name: ink.name,
+            hex: ink.hex,
+            position: (i / (count - 1)) * 100
+        });
+    }
+}
+
+function renderControls() {
+    colourControls.innerHTML = '';
+
+    stops.forEach((stop, index) => {
+
+        const row = document.createElement('div');
+        row.className = 'colour-row';
+
+        const select = document.createElement('select');
+
+        distressInks.forEach(ink => {
+            const option = document.createElement('option');
+            option.value = ink.hex;
+            option.textContent = ink.name;
+
+            if (ink.name === stop.name) {
+                option.selected = true;
+            }
+
+            select.appendChild(option);
+        });
+
+        select.addEventListener('change', (e) => {
+            const chosen = distressInks.find(i => i.hex === e.target.value);
+
+            stops[index].name = chosen.name;
+            stops[index].hex = chosen.hex;
+
+            updateBlend();
+            renderPins();
+        });
+
+        row.appendChild(select);
+        colourControls.appendChild(row);
+    });
+}
+
+function renderPins() {
+    stopTrack.innerHTML = '';
+
+    stops.forEach((stop, index) => {
+
+        const pin = document.createElement('div');
+        pin.className = 'stop-pin';
+
+        pin.style.left = stop.position + '%';
+        pin.style.background = stop.hex;
+        pin.style.color = stop.hex;
+
+        let dragging = false;
+
+        pin.addEventListener('mousedown', () => {
+            dragging = true;
+        });
+
+        document.addEventListener('mouseup', () => {
+            dragging = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+
+            if (!dragging) return;
+
+            const rect = stopTrack.getBoundingClientRect();
+
+            let x = e.clientX - rect.left;
+
+            x = Math.max(0, Math.min(rect.width, x));
+
+            const percent = (x / rect.width) * 100;
+
+            stops[index].position = percent;
+
+            stops.sort((a, b) => a.position - b.position);
+
+            renderPins();
+            updateBlend();
+            renderControls();
+        });
+
+        pin.addEventListener('touchstart', () => {
+            dragging = true;
+        }, { passive: true });
+
+        document.addEventListener('touchend', () => {
+            dragging = false;
+        });
+
+        document.addEventListener('touchmove', (e) => {
+
+            if (!dragging) return;
+
+            const rect = stopTrack.getBoundingClientRect();
+            let x = e.touches[0].clientX - rect.left;
+
+            x = Math.max(0, Math.min(rect.width, x));
+
+            const percent = (x / rect.width) * 100;
+
+            stops[index].position = percent;
+
+            stops.sort((a, b) => a.position - b.position);
+
+            renderPins();
+            updateBlend();
+            renderControls();
+
+        }, { passive: true });
+
+        stopTrack.appendChild(pin);
+    });
+}
+
+function updateBlend() {
+
+    const gradientStops = stops.map(stop => {
+        return `${stop.hex} ${stop.position}%`;
+    });
+
+    blendPreview.style.background =
+        `linear-gradient(to right, ${gradientStops.join(', ')})`;
+}
+
+stopCountSelect.addEventListener('change', () => {
+
+    createDefaultStops(parseInt(stopCountSelect.value));
+
+    renderControls();
+    renderPins();
+    updateBlend();
+});
+
+createDefaultStops(5);
+renderControls();
+renderPins();
+updateBlend();
+
+</script>
+
+</body>
+</html>
+```
+
+## Key Features Included
+
+* Responsive 1:2 split layout
+* Live updating gradient
+* Draggable colour stop pins
+* Dynamic number of blend stops
+* Named Ranger Distress Ink dropdowns
+* Touch support for iPad/Safari
+* UI styled closely to your mock-up
+* Real-time blend rendering without Generate button
+
+## Suggested Next Enhancements
+
+* Full Ranger Distress + Oxide libraries
+* Ink oxidation simulation
+* Blend softness controls
+* Save/share palettes
+* Export PNG swatches
+* Favourite combinations
+* Random palette generator
+* Drag handles directly on gradient
